@@ -64,6 +64,7 @@ if isinstance(origins, str):
         origins = ["*"]
     else:
         origins = [o.strip() for o in origins.split(",") if o.strip()]
+print("CORS ALLOWED ORIGINS:", origins)
 
 app.add_middleware(
     CORSMiddleware,
