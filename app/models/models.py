@@ -566,6 +566,15 @@ class KnowledgeDocument(Base):
     updated_at = Column(String, nullable=True)
 
 
+class SearchHistory(Base):
+    __tablename__ = "search_histories"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    query = Column(String, nullable=False)
+    response = Column(String, nullable=False)
+    timestamp = Column(String, nullable=False)
+
+
 class Admin(Base):
     __tablename__ = "admins"
 
@@ -580,5 +589,26 @@ class Admin(Base):
     @property
     def is_active(self) -> bool:
         return True
+
+
+class WhatsappChatSession(Base):
+    __tablename__ = "whatsapp_chat_sessions"
+
+    phone_number = Column(String, primary_key=True, index=True)
+    history = Column(JSON, nullable=False, default=list)  # List of message roles & content
+    last_interaction = Column(String, nullable=False)
+    session_context = Column(JSON, nullable=True, default=dict)
+
+
+class WhatsappMessageLog(Base):
+    __tablename__ = "whatsapp_message_logs"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    phone_number = Column(String, nullable=False, index=True)
+    query = Column(String, nullable=False)
+    response = Column(String, nullable=True)
+    status = Column(String, nullable=False)  # "Success", "Failed"
+    timestamp = Column(String, nullable=False)
+    latency = Column(Float, nullable=True)  # in seconds
 
 

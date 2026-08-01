@@ -7,7 +7,8 @@ from app.models.models import (
     CourseFeature, AdmissionRequirement,
     Infrastructure, Laboratory, Library, Hostel, SportsFacility, StudentClub, CampusEvent,
     AdmissionProcess, EligibilityCriteria, RequiredDocument, AdmissionTimeline, StudentEnquiry, FAQ, ContactInformation,
-    PlacementOverview, PlacementProcess, TrainingProgram, StudentSuccessStory, CareerResource, User, ActivityLog, KnowledgeDocument, Admin
+    PlacementOverview, PlacementProcess, TrainingProgram, StudentSuccessStory, CareerResource, User, ActivityLog, KnowledgeDocument, Admin, SearchHistory,
+    WhatsappChatSession, WhatsappMessageLog
 )
 
 def init_db(db: Session):
