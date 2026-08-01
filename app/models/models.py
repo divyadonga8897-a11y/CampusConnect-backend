@@ -548,3 +548,37 @@ class ActivityLog(Base):
     module = Column(String, nullable=False)
     description = Column(String, nullable=False)
     created_at = Column(String, nullable=True)
+
+
+class KnowledgeDocument(Base):
+    __tablename__ = "knowledge_documents"
+
+    id = Column(String, primary_key=True, index=True)
+    filename = Column(String, nullable=False)
+    category = Column(String, nullable=False)
+    file_type = Column(String, nullable=False)
+    upload_date = Column(String, nullable=False)
+    status = Column(String, nullable=False) # "Processing", "Indexed", "Failed"
+    chunk_count = Column(Integer, default=0)
+    indexed_status = Column(Boolean, default=False)
+    file_path = Column(String, nullable=True)
+    created_at = Column(String, nullable=True)
+    updated_at = Column(String, nullable=True)
+
+
+class Admin(Base):
+    __tablename__ = "admins"
+
+    id = Column(String, primary_key=True, index=True)
+    full_name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="super_admin") # super_admin, etc.
+    created_at = Column(String, nullable=True)
+    updated_at = Column(String, nullable=True)
+
+    @property
+    def is_active(self) -> bool:
+        return True
+
+

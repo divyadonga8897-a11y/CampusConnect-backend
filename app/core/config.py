@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     PINECONE_API_KEY: str = ""
+    PINECONE_INDEX_NAME: str = "campusconnect-ai"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -44,5 +45,6 @@ except ValidationError as e:
         OPENAI_API_KEY = ""
         GROQ_API_KEY = ""
         PINECONE_API_KEY = ""
+        PINECONE_INDEX_NAME = "campusconnect-ai"
     settings = DefaultSettings()
 

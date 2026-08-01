@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Generic, TypeVar
+from typing import List, Optional, Generic, TypeVar, Union
 
 T = TypeVar("T")
 
@@ -164,9 +164,9 @@ class CampusLocationBase(BaseModel):
 class PlacementStatisticsBase(BaseModel):
     id: str
     year: int
-    highest_package: str
-    average_package: str
-    placement_percentage: int
+    highest_package: Union[float, str]
+    average_package: Union[float, str]
+    placement_percentage: float
     companies_count: int
     students_placed: int
 
@@ -616,7 +616,7 @@ class UserBase(BaseModel):
     full_name: str
     email: str
     role: str
-    is_active: bool
+    is_active: Optional[bool] = True
     created_at: Optional[str] = None
 
     class Config:
@@ -651,3 +651,30 @@ class ActivityLogBase(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class KnowledgeDocumentBase(BaseModel):
+    id: str
+    filename: str
+    category: str
+    file_type: str
+    upload_date: str
+    status: str
+    chunk_count: int
+    indexed_status: bool
+    file_path: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class KnowledgeStats(BaseModel):
+    total_documents: int
+    total_chunks: int
+    total_embeddings: int
+    last_updated: Optional[str] = None
+    pinecone_status: str
+    groq_status: str
+

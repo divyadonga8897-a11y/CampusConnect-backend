@@ -7,7 +7,7 @@ from app.models.models import (
     CourseFeature, AdmissionRequirement,
     Infrastructure, Laboratory, Library, Hostel, SportsFacility, StudentClub, CampusEvent,
     AdmissionProcess, EligibilityCriteria, RequiredDocument, AdmissionTimeline, StudentEnquiry, FAQ, ContactInformation,
-    PlacementOverview, PlacementProcess, TrainingProgram, StudentSuccessStory, CareerResource, User, ActivityLog
+    PlacementOverview, PlacementProcess, TrainingProgram, StudentSuccessStory, CareerResource, User, ActivityLog, KnowledgeDocument, Admin
 )
 
 def init_db(db: Session):
@@ -1521,5 +1521,21 @@ def init_db(db: Session):
             )
         ]
         db.add_all(logs)
+
+    # Seed Admin profiles if empty
+    if db.query(Admin).filter(Admin.email == "divyadonga8897@gmail.com").first() is None:
+        from app.services.auth_service import get_password_hash
+        import datetime
+        now_str = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        super_admin = Admin(
+            id="admin-super",
+            full_name="Super Admin",
+            email="divyadonga8897@gmail.com",
+            password_hash=get_password_hash("DivyaDonga8897"),
+            role="super_admin",
+            created_at=now_str,
+            updated_at=now_str
+        )
+        db.add(super_admin)
 
     db.commit()

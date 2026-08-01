@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config import settings
 from app.database.connection import SessionLocal
 from app.database.init_db import init_db
-from app.routers import college, departments, courses, fees, scholarships, campus, placements, chat, academic, admission, career, auth, cms
+from app.routers import college, departments, courses, fees, scholarships, campus, placements, chat, academic, admission, career, auth, cms, admin_kb
 
 app = FastAPI(
     title="CampusConnect AI API",
@@ -126,6 +126,7 @@ app.include_router(admission.router)
 app.include_router(career.router)
 app.include_router(auth.router)
 app.include_router(cms.router)
+app.include_router(admin_kb.router)
 
 @app.get("/")
 def read_root():
