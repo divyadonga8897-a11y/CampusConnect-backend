@@ -227,49 +227,92 @@ class RagService:
     #  DOCUMENT INGESTION — used by admin_kb.py upload/reindex
     # ================================================================
 
-    def process_and_index_document(self, doc_id: str, file_path: str, filename: str, category: str, file_type: str, db: Session):
+    def process_and_index_document(self, doc_id: str, file_path: str, filename: str, category: str, file_type: str, db: Session = None):
         """
         Background task: extracts text, recursively chunks it, generates embeddings,
         and upserts to Pinecone index with full metadata.
         """
+        from app.database.connection import SessionLocal
+        local_db = db if db is not None else SessionLocal()
+        
+        print(f"\n--- [RAG Ingestion Startup] ---")
+        print(f"File received: {filename}")
+        print(f"Document ID: {doc_id}")
+        print(f"File path: {file_path}")
+        print(f"Category: {category}")
+        
         try:
-            print(f"[RAG-Index] Starting background indexing for document {doc_id} ({filename})...")
-
-            # 1. Extract text
+            # 1. Text Extraction
+            print(f"[RAG-Index] Step 1: Text extraction started...")
             text = self._extract_text(file_path, file_type)
-
             if not text.strip():
-                raise ValueError("Extracted text is empty")
+                print(f"[RAG-Index] Step 1: Text extraction FAILED (empty text).")
+                raise ValueError("Extracted text is empty or blank")
+            
+            char_count = len(text)
+            print(f"[RAG-Index] Step 1: Text extraction SUCCESS. Characters extracted: {char_count}")
 
             # 2. Recursive Chunking
+            print(f"[RAG-Index] Step 2: Chunk generation started...")
             chunks = self._split_text_recursive(text, max_chunk_size=1000, overlap=200)
-            print(f"[RAG-Index] Document split into {len(chunks)} chunks.")
+            chunk_count = len(chunks)
+            print(f"[RAG-Index] Step 2: Chunk generation SUCCESS. Chunks generated: {chunk_count}")
 
-            # 3. Connect to Pinecone and Upsert
+            # 3. Connect to Pinecone and check dimension
+            print(f"[RAG-Index] Step 3: Checking Pinecone configuration...")
+            if not self.pinecone_key:
+                raise ValueError("Pinecone API Key (PINECONE_API_KEY) is not set.")
+                
             from pinecone import Pinecone
             pc = Pinecone(api_key=self.pinecone_key)
             index = pc.Index(self.pinecone_index)
+            
+            desc = pc.describe_index(self.pinecone_index)
+            dimension = desc.dimension
+            print(f"[RAG-Index] Step 3: Pinecone index found: '{self.pinecone_index}' (Dimension: {dimension})")
+            
+            # Select embedding model & provider based on dimension compatibility
+            if dimension == 1024:
+                embed_model = "multilingual-e5-large"
+                provider = "pinecone"
+                print(f"[RAG-Index] Selected embedding provider: Pinecone Inference API (Model: {embed_model})")
+            elif dimension == 1536:
+                if not self.openai_key:
+                    raise ValueError(f"Pinecone index expects 1536 dimensions but OpenAI API Key (OPENAI_API_KEY) is not configured.")
+                embed_model = "text-embedding-3-small"
+                provider = "openai"
+                print(f"[RAG-Index] Selected embedding provider: OpenAI API (Model: {embed_model})")
+            else:
+                raise ValueError(f"Unsupported Pinecone index dimension: {dimension}. Expected 1024 or 1536.")
 
+            # 4. Generate Embeddings & Upsert
+            print(f"[RAG-Index] Step 4: Generating embeddings & uploading to Pinecone...")
             now_str = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-            # Embed chunks in batches of 32
             batch_size = 32
             vectors = []
 
             for i in range(0, len(chunks), batch_size):
                 batch_chunks = chunks[i:i + batch_size]
-                embeddings_res = pc.inference.embed(
-                    model="multilingual-e5-large",
-                    inputs=batch_chunks,
-                    parameters={"input_type": "passage", "truncate": "END"}
-                )
+                
+                if provider == "pinecone":
+                    embeddings_res = pc.inference.embed(
+                        model=embed_model,
+                        inputs=batch_chunks,
+                        parameters={"input_type": "passage", "truncate": "END"}
+                    )
+                    batch_vectors = [emb.values for emb in embeddings_res]
+                else:  # openai
+                    from openai import OpenAI
+                    client = OpenAI(api_key=self.openai_key)
+                    res = client.embeddings.create(input=batch_chunks, model=embed_model)
+                    batch_vectors = [emb.embedding for emb in res.data]
 
-                for idx, embedding in enumerate(embeddings_res):
+                for idx, vector_values in enumerate(batch_vectors):
                     chunk_idx = i + idx
                     vector_id = f"{doc_id}_{chunk_idx}"
                     vectors.append({
                         "id": vector_id,
-                        "values": embedding.values,
+                        "values": vector_values,
                         "metadata": {
                             "document_id": doc_id,
                             "document_name": filename,
@@ -282,32 +325,47 @@ class RagService:
                         }
                     })
 
-            # Upsert vectors to Pinecone
-            print(f"[RAG-Index] Upserting {len(vectors)} vectors to Pinecone...")
-            # Upsert in batches of 100 for reliability
+            print(f"[RAG-Index] Embedding generation: SUCCESS. Upserting {len(vectors)} vectors to Pinecone...")
+            
+            # Upsert in batches of 100
             for i in range(0, len(vectors), 100):
                 batch = vectors[i:i + 100]
                 index.upsert(vectors=batch)
+            print(f"[RAG-Index] Pinecone upload: SUCCESS.")
 
-            # 4. Update Database
+            # 5. Update Database Record
+            print(f"[RAG-Index] Step 5: Updating Database...")
             from app.models.models import KnowledgeDocument
-            doc = db.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).first()
+            doc = local_db.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).first()
             if doc:
                 doc.status = "Indexed"
-                doc.chunk_count = len(chunks)
+                doc.chunk_count = chunk_count
                 doc.indexed_status = True
+                doc.error_message = None
                 doc.updated_at = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-                db.commit()
-                print(f"[RAG-Index] ✅ Document {doc_id} ({filename}) successfully indexed with {len(chunks)} chunks!")
+                local_db.commit()
+                print(f"[RAG-Index] Final status: INDEXED for document '{filename}'")
+            print(f"--- [RAG Ingestion Finished SUCCESS] ---\n")
 
         except Exception as e:
-            print(f"[RAG-Index] ❌ Indexing failed for document {doc_id}. Error: {e}")
-            from app.models.models import KnowledgeDocument
-            doc = db.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).first()
-            if doc:
-                doc.status = f"Failed: {str(e)[:150]}"
-                doc.updated_at = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-                db.commit()
+            err_msg = str(e)
+            print(f"[RAG-Index] Pipeline FAILED for document '{filename}': {err_msg}")
+            print(f"--- [RAG Ingestion Finished FAILED] ---\n")
+            
+            try:
+                from app.models.models import KnowledgeDocument
+                doc = local_db.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).first()
+                if doc:
+                    doc.status = "Failed"
+                    doc.error_message = err_msg[:500]
+                    doc.updated_at = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                    local_db.commit()
+            except Exception as db_err:
+                print(f"[RAG-Index] Could not update failure state in DB: {db_err}")
+                
+        finally:
+            if db is None:
+                local_db.close()
 
     def delete_document_vectors(self, doc_id: str):
         """

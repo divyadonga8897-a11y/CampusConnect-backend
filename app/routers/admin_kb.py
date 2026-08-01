@@ -88,7 +88,7 @@ def upload_document(
         filename=filename,
         category=category,
         file_type=ext,
-        db=db
+        db=None
     )
     
     return ApiResponse(data=new_doc)
@@ -174,7 +174,7 @@ def reindex_document(
         filename=doc.filename,
         category=doc.category,
         file_type=doc.file_type,
-        db=db
+        db=None
     )
     
     return ApiResponse(data=doc)
@@ -315,3 +315,148 @@ def rag_playground(
     
     result = rag_service.rag_playground(question)
     return ApiResponse(data=result)
+
+
+@router.get("/health/pinecone", response_model=ApiResponse[dict])
+def health_check_pinecone(current_user: User = Depends(get_current_user)):
+    verify_admin(current_user)
+    try:
+        if not rag_service.pinecone_key:
+            raise ValueError("Pinecone API Key is not set in environment.")
+            
+        from pinecone import Pinecone
+        pc = Pinecone(api_key=rag_service.pinecone_key)
+        
+        # Describe index
+        desc = pc.describe_index(rag_service.pinecone_index)
+        index_name = desc.name
+        dimension = desc.dimension
+        
+        # Test vector loop: insert -> query -> delete
+        index = pc.Index(rag_service.pinecone_index)
+        
+        import random
+        test_id = f"health_check_{random.randint(1000, 9999)}"
+        test_values = [random.uniform(-1.0, 1.0) for _ in range(dimension)]
+        
+        # Insert
+        index.upsert(vectors=[{
+            "id": test_id,
+            "values": test_values,
+            "metadata": {
+                "document_id": "health_check_temp",
+                "filename": "health_check_temp",
+                "text": "Pinecone database health check probe vector.",
+                "upload_date": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        }])
+        
+        # Query
+        q_res = index.query(vector=test_values, top_k=1, include_metadata=True)
+        
+        # Delete
+        index.delete(ids=[test_id])
+        
+        # Fetch stats
+        stats = index.describe_index_stats()
+        total_vectors = stats.get("total_vector_count", 0)
+        
+        return ApiResponse(data={
+            "status": "connected",
+            "index": index_name,
+            "vectors": total_vectors,
+            "dimension": dimension,
+            "metric": desc.metric,
+            "message": "Vector insert, query, and cleanup loop completed successfully."
+        })
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Pinecone health check failed: {str(e)}"
+        )
+
+
+@router.get("/health/groq", response_model=ApiResponse[dict])
+def health_check_groq(current_user: User = Depends(get_current_user)):
+    verify_admin(current_user)
+    try:
+        if not rag_service.groq_key:
+            raise ValueError("Groq API Key is not set in environment.")
+            
+        if not rag_service.groq_client:
+            raise ValueError("Groq Client is not initialized.")
+            
+        import time
+        start_time = time.time()
+        
+        completion = rag_service.groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a health probe helper."},
+                {"role": "user", "content": "Explain CampusConnect AI briefly in one sentence."}
+            ],
+            max_tokens=50,
+            temperature=0.1
+        )
+        
+        latency = round(time.time() - start_time, 2)
+        response_text = completion.choices[0].message.content
+        
+        return ApiResponse(data={
+            "status": "connected",
+            "model": "llama-3.3-70b-versatile",
+            "response_time": latency,
+            "test_response": response_text,
+            "message": "Groq API is operational and responded successfully."
+        })
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Groq health check failed: {str(e)}"
+        )
+
+
+@router.get("/health/embedding", response_model=ApiResponse[dict])
+def health_check_embedding(current_user: User = Depends(get_current_user)):
+    verify_admin(current_user)
+    try:
+        if not rag_service.pinecone_key:
+            raise ValueError("Pinecone API Key is not set in environment.")
+            
+        from pinecone import Pinecone
+        pc = Pinecone(api_key=rag_service.pinecone_key)
+        desc = pc.describe_index(rag_service.pinecone_index)
+        dimension = desc.dimension
+        
+        # Test generation
+        if dimension == 1024:
+            embeddings_res = pc.inference.embed(
+                model="multilingual-e5-large",
+                inputs=["CampusConnect AI health probe text"],
+                parameters={"input_type": "query", "truncate": "END"}
+            )
+            v_len = len(embeddings_res[0].values)
+            model_name = "multilingual-e5-large"
+        else: # 1536
+            if not rag_service.openai_key:
+                raise ValueError("Pinecone index dimension is 1536, but OPENAI_API_KEY is not set.")
+            from openai import OpenAI
+            client = OpenAI(api_key=rag_service.openai_key)
+            res = client.embeddings.create(
+                input=["CampusConnect AI health probe text"],
+                model="text-embedding-3-small"
+            )
+            v_len = len(res.data[0].embedding)
+            model_name = "text-embedding-3-small"
+            
+        return ApiResponse(data={
+            "status": "connected",
+            "model": model_name,
+            "dimension": v_len,
+            "message": f"Embedding generation successful using {model_name}."
+        })
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Embedding health check failed: {str(e)}"
+        )

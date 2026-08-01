@@ -1,6 +1,10 @@
 import sys
 import os
 import time
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Resolve import paths when executing uvicorn inside the backend/ subfolder
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

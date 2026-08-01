@@ -663,6 +663,7 @@ class KnowledgeDocumentBase(BaseModel):
     chunk_count: int
     indexed_status: bool
     file_path: Optional[str] = None
+    error_message: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

@@ -562,6 +562,7 @@ class KnowledgeDocument(Base):
     chunk_count = Column(Integer, default=0)
     indexed_status = Column(Boolean, default=False)
     file_path = Column(String, nullable=True)
+    error_message = Column(String, nullable=True)
     created_at = Column(String, nullable=True)
     updated_at = Column(String, nullable=True)
 

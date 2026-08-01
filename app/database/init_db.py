@@ -15,6 +15,21 @@ def init_db(db: Session):
     # Create all tables if they don't exist
     Base.metadata.create_all(bind=engine)
 
+    # Dynamic migration helper: Add error_message column if missing in database
+    try:
+        from sqlalchemy import text
+        if engine.name == "postgresql":
+            db.execute(text("ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS error_message VARCHAR"))
+        else: # sqlite
+            cursor = db.execute(text("PRAGMA table_info(knowledge_documents)"))
+            columns = [row[1] for row in cursor.fetchall()]
+            if "error_message" not in columns:
+                db.execute(text("ALTER TABLE knowledge_documents ADD COLUMN error_message VARCHAR"))
+        db.commit()
+        print("[Init-DB] Database schema migration for error_message column completed successfully.")
+    except Exception as alter_err:
+        print(f"[Init-DB] Warning: Could not run schema migration: {alter_err}")
+
     # Check if college data exists; if not, seed it
     if db.query(College).first() is None:
         # Seed College Info
