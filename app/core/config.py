@@ -9,7 +9,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "ssiet_jwt_secret_key_999_super_secured"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-    CORS_ORIGINS: Union[str, List[str]] = ["*"]
+    CORS_ORIGINS: Union[str, List[str]] = [
+    "http://localhost:3000",
+    "https://campus-connect-ai-lake.vercel.app"
+] 
     
     # Upload configuration
     UPLOAD_DIR: str = "public/uploads"
