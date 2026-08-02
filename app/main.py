@@ -114,7 +114,7 @@ def on_startup():
     print("  - /api/v1/admission [Admission]")
     print("  - /api/v1/career [Career]")
     print("  - /api/v1/cms [CMS Portal]")
-    print("FastAPI Backend Server Ready! Swagger docs available at: http://localhost:8000/docs")
+    print("FastAPI Backend Server Ready! Swagger docs available at: https:localhost:8000///docs")
     print("-" * 40 + "\n")
 
 # Include Routers
