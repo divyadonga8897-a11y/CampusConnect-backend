@@ -10,9 +10,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     CORS_ORIGINS: Union[str, List[str]] = [
-    "http://localhost:3000"
-    "https://campus-connect-ai-lake.vercel.app"
-] 
+        "http://localhost:3000",
+        "https://campus-connect-ai-lake.vercel.app",
+        "*"
+    ] 
     
     # Upload configuration
     UPLOAD_DIR: str = "public/uploads"
